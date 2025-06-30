@@ -19,24 +19,25 @@ bool Player::operator==(const Player& other) const{
     return other.fd == fd && other.move == move;
 }
 Player::~Player(){
-        if(fd >= 0) close(fd);
+        if(fd >= 0){ close(fd);}
 }
     // uses buflen -1, store '\0' in the last byte
 int Player::read_data(char buf[], size_t buflen){ /* buflenn is always the uppe
                                                      rbound amount to read*/
-    while(1){
+    while(true){
         size_t pos = Pbuf.find('\n');
         if (pos != std::string::npos){
-            int len = std::min(buflen-1, pos+1);
+            size_t len = std::min(buflen-1, pos+1);
             std::copy_n(Pbuf.begin(), len, buf);
             buf[len] = 0;
             Pbuf.erase(0, pos+1);
             LOG("Receiving data for player{}: {}", Player::move, buf);
-            return pos+1;
+            return len;
         }
             char rb[512];
             int result = recv(fd, rb, 512, 0);
             if (result <= 0){
+                if(result < 0) perror("recv");
                 LOG("Player disconnected or error reading input");
                 return result;
             } 
@@ -44,22 +45,25 @@ int Player::read_data(char buf[], size_t buflen){ /* buflenn is always the uppe
     }
 }
 
-int Player::write_data(const char buf[], size_t buflen){
+int Player::write_data(const char buf[], size_t buflen) const{
     LOG("Writing data for player{}: {}", move, buf);
-    int rem_bytes{static_cast<int>(buflen)};
+    size_t rem_bytes{buflen};
     int cur{};
-    const char * s = buf;
+    const char * str = buf;
 
     while (rem_bytes > 0){
-        cur = send(fd, s, rem_bytes, 0);
-        if (cur == -1) return cur;
+        cur = send(fd, str, rem_bytes, 0);
+        if (cur == -1) { return cur; }
         rem_bytes -= cur;
-        s = s + cur;
+        str = str + cur;
     }
-    return buflen - rem_bytes;
+    return static_cast<int>(buflen - rem_bytes);
 }
 
-Game::Game(Player& f, Player& s): first{f}, second{s}{}
+Game::Game(Player& f, Player& s): first{f}, second{s}{
+    send_message(first, "Ready:Y");
+    send_message(second, "Ready:Y");
+}
 
 void Game::print_board() const{
     std::cout << "+---+---+---+\n";
@@ -84,11 +88,15 @@ int Game::handle_input(Player * cur, Player * next_pl){
             if (bytelen <= 0 ){
                 LOG("{}", bytelen==0? "Player disconnected": "Error reading from Player");
                 send_message(*next_pl, "mesg:Player quit the game");
+                send_message(*cur, "mesg:You quit the game");
+                send_message(*next_pl, "over:disconnect");
+                send_message(*cur, "over:disconnect");
                 return false;
             }
             if (res == "quit\n"){
                 LOG("Player quit");
                 send_message(*next_pl, "mesg:Player quit the game");
+                send_message(*next_pl, "over:disconnect");
                 return false;
             }
             LOG("RES: {}", res);
@@ -107,7 +115,7 @@ int Game::handle_input(Player * cur, Player * next_pl){
                 }
             } else{
                 LOG("Invalid format: Expected Single digit: {}", res);
-                send_message(*cur, "Err:Invalid Move - Please Enter digit 0 - 8");
+                send_message(*cur, "mesg:Enter a digit between 0–8 to make a move. Type 'quit' to exit.");
             }
         }
       return false;
@@ -128,6 +136,8 @@ void Game::play_game(){
         std::swap(cur, next_pl);
     }
     handle_result();
+    send_message(*cur, "over:disconnect");
+    send_message(*next_pl, "over:disconnect");
 }
 
 void Game::handle_result(){

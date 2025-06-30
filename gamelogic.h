@@ -4,18 +4,19 @@
 #include <vector>
 #include <array>
 #include <iostream>
+
 struct Player{
-    std::string Pbuf; //buffered input for player used for framing
     Player(char mov, int fd);
     Player(const Player& other) = delete ;
     Player& operator=(const Player&) = delete;
     bool operator==(const Player& other) const;
     int read_data(char buf[], size_t buflen);
-    int write_data(const char buf[], size_t buflen);
+    int write_data(const char buf[], size_t buflen) const;
     ~Player();
     char move;
 private:
     int fd;
+    std::string Pbuf; //buffered input for player used for framing
 };
 
 struct Game{
@@ -34,4 +35,8 @@ private:
     void handle_result();
     int handle_input(Player * cur, Player * next_pl);
 };
+
+void send_message(Player& p, const std::string message);
+
 #endif
+

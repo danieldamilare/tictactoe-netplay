@@ -7,20 +7,22 @@
 #include <iostream>
 #include <unistd.h>
 #include "gamelogic.h"
+#include "log.h"
 
 
 #define PORT "8080"
 void * get_sock_in(struct sockaddr * addr){
-    if (addr->sa_family == AF_INET)
+    if (addr->sa_family == AF_INET){
         return &(((struct sockaddr_in *) addr)->sin_addr);
-    else return &(((struct sockaddr_in6 *)addr)->sin6_addr);
+    }
+    return &(((struct sockaddr_in6 *)addr)->sin6_addr); 
 }
 
 class TictactoeServer{
 public:
 
     TictactoeServer(std::string serv):
-        servfd{-1}, clifd1{-1}, clifd2{-1}, service{serv}{}
+        servfd{-1}, , clifd2{-1}, service{serv}{}
 
     int accept_connection(struct sockaddr_storage& addr, socklen_t& addrsiz){
         int sockfd{};
@@ -31,18 +33,17 @@ public:
 #endif
             if (errno == EINTR)
                 continue;
-            else{
-                perror("Error accepting connection");
-                return sockfd;
-            }
+            perror("Error accepting connection");
+            return sockfd;
+            
         }
         return sockfd;
     }
     
-    void run(void){
+    void run(){
         struct addrinfo * servinfo{};
         servinfo= get_addr();
-        if (servinfo == NULL){
+        if (servinfo == nullptr){
             return;
         }
 
@@ -55,9 +56,7 @@ public:
         servinfo = nullptr;
 
         socklen_t adsiz = sizeof(first_player);
-#ifdef LOGSOCK
-        std::cout <<  "Waiting for user to connect\n";
-#endif
+        LOG("Waiting for user to connect");
 
         clifd1 = accept_connection(first_player, adsiz);
         if (clifd1 < 0) return;
@@ -65,10 +64,9 @@ public:
                   get_sock_in((struct sockaddr *)&first_player),
                   first_buf, sizeof first_buf
         );
-        std::cout << first_buf << " connected\n";
+        LOG("{} connected", first_buf);
         Player player1{'X', clifd1};
-        std::string s{"mesg:Connected\nWaiting for 2nd player"};
-        player1.write_data(s.c_str(), s.length());
+        send_message(player1, "mesg:Connected. Waiting for 2nd player...");
 
         clifd2 = accept_connection(second_player, adsiz);
         if (clifd2 < 0) return;
@@ -76,12 +74,8 @@ public:
                   get_sock_in((struct sockaddr *) &second_player),
                   second_buf, sizeof second_buf);
 
-        std::cout << second_buf << " connected\n";
+        LOG("{} connected", second_buf);
         Player player2{'O', clifd2};
-        s = "Ready:X";
-        player1.write_data(s.c_str(), s.length());
-        s.back() = 'O';
-        player2.write_data(s.c_str(), s.length());
 
         Game game{player1, player2};
         game.play_game();
@@ -90,21 +84,22 @@ public:
     }
 
 private:
-    int servfd, clifd1, clifd2;
+    int servfd{}, clifd1{}, clifd2{};
     std::string service;
     static constexpr int BACKLOG =  10;
     struct sockaddr_storage first_player{}, second_player{};
-    char first_buf[INET6_ADDRSTRLEN], second_buf[INET6_ADDRSTRLEN];
+    char first_buf[INET6_ADDRSTRLEN]{}, second_buf[INET6_ADDRSTRLEN]{};
 
     struct addrinfo * get_addr(){
-        int status;
-        struct addrinfo hints{}, *servinfo{};
+        int status{};
+        struct addrinfo hints{};
+        struct addrinfo *servinfo{};
         hints.ai_family = AF_UNSPEC;
         hints.ai_socktype = SOCK_STREAM;
         hints.ai_flags = AI_PASSIVE;
 
-        if ((status = getaddrinfo(NULL, service.c_str(), &hints, &servinfo)) == -1){
-            std::cout << "Error getting port " << service << ": " << 
+        if ((status = getaddrinfo(nullptr, service.c_str(), &hints, &servinfo)) == -1){
+            std::cerr << "Error getting port " << service << ": " << 
                 gai_strerror(status) << std::endl;
             return nullptr;
         }
@@ -112,13 +107,13 @@ private:
     }
 
 
-    int initialize_socket(struct addrinfo * servinfo){
-        struct addrinfo * p{};
+    static int initialize_socket(struct addrinfo * servinfo){
+        struct addrinfo * ptr{};
         int servfd{};
         int yes = 1;
 
-        for (p = servinfo; p != NULL; p = p->ai_next){
-            if ((servfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
+        for (ptr = servinfo; ptr != nullptr; ptr = ptr->ai_next){
+            if ((servfd = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol)) == -1)
                 continue;
 
             if (setsockopt(servfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1){
@@ -127,7 +122,7 @@ private:
                 continue;
             }
 
-            if (bind(servfd, p->ai_addr, p->ai_addrlen) == -1){
+            if (bind(servfd, ptr->ai_addr, ptr->ai_addrlen) == -1){
                 perror("bind");
                 close(servfd);
                 continue;
@@ -135,13 +130,11 @@ private:
             break;
         }
 
-        if (p == NULL){
+        if (ptr == nullptr){
             std::cerr << "Failed to bind any address\n";
             return -1;
         }
-#ifdef LOGSOCK
-        std::cout << "Binded to socket\n";
-#endif
+        LOG("Binded to socket");
         if (listen(servfd, BACKLOG) == -1){
             close(servfd);
             perror("Error listening to socket");
