@@ -5,6 +5,7 @@
 #include <array>
 #include <iostream>
 struct Player{
+    std::string Pbuf; //buffered input for player used for framing
     Player(char mov, int fd);
     Player(const Player& other) = delete ;
     Player& operator=(const Player&) = delete;
@@ -30,5 +31,7 @@ private:
     bool game_over() const;
     bool is_valid(int n) const;
     int read_move(Player& cur, Player& nxt_pl);
+    void handle_result();
+    int handle_input(Player * cur, Player * next_pl);
 };
 #endif
