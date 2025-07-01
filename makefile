@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -Wall -fsanitize=undefined,address -std=c++20	
+CFLAGS = -Wall -g -fsanitize=undefined,address -std=c++20	
 SRC =  $(wildcard *.cpp)
 HEADERS = $(wildcard *.h)
 OBJ = $(SRC:.cpp=.o)
