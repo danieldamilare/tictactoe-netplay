@@ -11,18 +11,22 @@
 #include "gamelogic.h"
 #include "log.h"
 
-Player::Player(char mov, int fd): move{mov}, fd{fd}{
+Player::Player(char mov): move{mov} {}
+HumanPlayer::HumanPlayer(char mov, int fd):Player(mov), fd{fd}{
     Pbuf.reserve(1024);
 }
 
-bool Player::operator==(const Player& other) const{
-    return other.fd == fd && other.move == move;
+bool HumanPlayer::operator==(const Player& other) const{
+    if (auto * p = dynamic_cast<const HumanPlayer*>(&other)){
+        return p->fd == fd && p->move == move;
+    }
+    return false;
 }
-Player::~Player(){
+HumanPlayer::~HumanPlayer(){
         if(fd >= 0){ close(fd);}
 }
     // uses buflen -1, store '\0' in the last byte
-int Player::read_data(char buf[], size_t buflen){ /* buflenn is always the uppe
+int HumanPlayer::read_data(char buf[], size_t buflen){ /* buflenn is always the uppe
                                                      rbound amount to read*/
     while(true){
         size_t pos = Pbuf.find('\n');
@@ -31,22 +35,22 @@ int Player::read_data(char buf[], size_t buflen){ /* buflenn is always the uppe
             std::copy_n(Pbuf.begin(), len, buf);
             buf[len] = 0;
             Pbuf.erase(0, pos+1);
-            LOG("Receiving data for player{}: {}", Player::move, buf);
+            LOG("Receiving data for player{}: {}", HumanPlayer::move, buf);
             return len;
         }
             char rb[512];
             int result = recv(fd, rb, 512, 0);
             if (result <= 0){
                 if(result < 0) perror("recv");
-                LOG("Player disconnected or error reading input");
+                LOG("HumanPlayer disconnected or error reading input");
                 return result;
             } 
             Pbuf.append(rb, result);
     }
 }
 
-int Player::write_data(const char buf[], size_t buflen) const{
-    LOG("Writing data for player{}: {}", move, buf);
+int HumanPlayer::write_data(const char buf[], size_t buflen) const{
+    LOG("Writing data for player: {}: {}", move, buf);
     size_t rem_bytes{buflen};
     int cur{};
     const char * str = buf;
@@ -61,8 +65,8 @@ int Player::write_data(const char buf[], size_t buflen) const{
 }
 
 Game::Game(Player& f, Player& s): first{f}, second{s}{
-    send_message(first, "Ready:Y");
-    send_message(second, "Ready:Y");
+    send_message(first, "ready:X");
+    send_message(second, "ready:O");
 }
 
 void Game::print_board() const{
@@ -97,6 +101,7 @@ int Game::handle_input(Player * cur, Player * next_pl){
                 LOG("Player quit");
                 send_message(*next_pl, "mesg:Player quit the game");
                 send_message(*next_pl, "over:disconnect");
+                send_message(*cur, "over:disconnect");
                 return false;
             }
             LOG("RES: {}", res);
@@ -111,7 +116,7 @@ int Game::handle_input(Player * cur, Player * next_pl){
 
                 else {
                     LOG("Invalid move by res: {}", res);
-                    send_message(*cur, "Err:Invalid Move - Position already taken or out of range");
+                    send_message(*cur, "err:Invalid Move - Position already taken or out of range");
                 }
             } else{
                 LOG("Invalid format: Expected Single digit: {}", res);
@@ -146,7 +151,7 @@ void Game::handle_result(){
 
     if ((x = check_winner())){
         LOG("{} is the winner", x);
-        std::string s1 = "mesg:You Won\n", s2 = "mesg:You lose\n";
+        std::string s1 = "over:won\n", s2 = "over:lost\n";
         if (first.move == x){
             send_message(first, s1);
             send_message(second, s2);
@@ -156,8 +161,8 @@ void Game::handle_result(){
         }
     } else{
         LOG("Game ended in a tie");
-        send_message(first,"mesg:Game ended in a tie");
-        send_message(second,"mesg:Game ended in a tie");
+        send_message(first,"over:tie");
+        send_message(second,"over:tie");
     }
 }
 

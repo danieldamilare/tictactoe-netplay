@@ -6,17 +6,36 @@
 #include <iostream>
 
 struct Player{
-    Player(char mov, int fd);
-    Player(const Player& other) = delete ;
-    Player& operator=(const Player&) = delete;
-    bool operator==(const Player& other) const;
-    int read_data(char buf[], size_t buflen);
-    int write_data(const char buf[], size_t buflen) const;
-    ~Player();
+    virtual ~Player() = default;
+    Player(char mov);
+    virtual bool operator==(const Player& other)const = 0;
+    virtual int read_data(char buf[], size_t buflen) = 0;
+    virtual int write_data(const char buf[], size_t buflen) const = 0;
     char move;
+};
+
+struct HumanPlayer: Player{
+    HumanPlayer(char mov, int fd);
+    HumanPlayer(const HumanPlayer& other) = delete ;
+    HumanPlayer& operator=(const HumanPlayer&) = delete;
+    bool operator==(const Player& other) const override;
+    int read_data(char buf[], size_t buflen) override;
+    int write_data(const char buf[], size_t buflen) const override;
+    ~HumanPlayer();
 private:
     int fd;
     std::string Pbuf; //buffered input for player used for framing
+};
+
+struct BotPlayer: public Player{
+    BotPlayer(char mov);
+    bool operator==(const Player& other) const override;
+    int read_data(char buf[], size_t bufflen) override;
+    int write_data(const char buf[], size_t buflen) const override;
+    ~BotPlayer();
+private:
+    std::array<int, 9> board;
+    std::array<int, 9> best_positions;
 };
 
 struct Game{
@@ -39,4 +58,3 @@ private:
 void send_message(Player& p, const std::string message);
 
 #endif
-

@@ -22,7 +22,7 @@ class TictactoeServer{
 public:
 
     TictactoeServer(std::string serv):
-        servfd{-1}, , clifd2{-1}, service{serv}{}
+        servfd{-1}, clifd1{-1}, clifd2{-1}, service{serv}{}
 
     int accept_connection(struct sockaddr_storage& addr, socklen_t& addrsiz){
         int sockfd{};
@@ -65,7 +65,7 @@ public:
                   first_buf, sizeof first_buf
         );
         LOG("{} connected", first_buf);
-        Player player1{'X', clifd1};
+        HumanPlayer player1{'X', clifd1};
         send_message(player1, "mesg:Connected. Waiting for 2nd player...");
 
         clifd2 = accept_connection(second_player, adsiz);
@@ -75,7 +75,7 @@ public:
                   second_buf, sizeof second_buf);
 
         LOG("{} connected", second_buf);
-        Player player2{'O', clifd2};
+        HumanPlayer player2{'O', clifd2};
 
         Game game{player1, player2};
         game.play_game();
